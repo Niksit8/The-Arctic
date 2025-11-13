@@ -94,7 +94,6 @@ table_revenue
 df_all <- df_POAD %>%
   select(c('arctic_zone', 'Remote', 'suburb','pop_men', 'pop_women', 'pop_total','migration'))
 
-
 df_all <- df_all %>%
   mutate(suburb = case_when(suburb == "TRUE" ~ 1,
                             suburb == "FALSE" ~0))%>%
