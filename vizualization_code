@@ -1,0 +1,526 @@
+
+
+#install.packages('ggplot2')
+#install.packages('dplyr')
+#install.packages('tidyr')
+#install.packages('gt')
+#install.packages("gtExtras")
+
+
+library(ggplot2)
+library(gtsummary)
+library(tidyr)
+library(dplyr)
+library(gt)
+library(tidyverse)
+library(gtExtras)
+library(emoji)
+library(writexl)
+
+
+df_POAD <- df_POAD %>%
+  mutate(arctic_zone = case_when(df_POAD$arctic=="TRUE" ~ 1,
+                                 df_POAD$arctic == "FALSE" ~ 0)
+  ) %>%
+  mutate(Remote = case_when(df_POAD$remote == "TRUE" ~ 1,
+                            df_POAD$remote == "FALSE" ~ 0))
+
+
+######Доходы#####
+df_revenue <- df_POAD %>%
+  select(c('region', 'municipality_up_name', 'municipality_down_name', 'settlement_name',
+           'arctic_zone', 'wage_average', 'social_share' ,'kindergarden_salary', 
+           'school_salary', 'culture_salary')) %>%  select(c('wage_average', 'social_share' ,'kindergarden_salary', 
+                                                                       'school_salary', 'culture_salary'))%>%
+  rename( #"Населённые пункты,\ относящиеся к Арктической зоне" = arctic_zone,
+    # "Труднодоступные населённые пункты" = Remote,
+    "Средняя заработная плата" = wage_average,
+    "Доля социальных выплат в денежных доходах" = social_share,
+    "Средняя запрлата педагогических\ работников дошкольных организаций" = kindergarden_salary,
+    "Средняя запрлата педагогических\ работников муниципальных образовательных организаций" = school_salary,
+    "Средняя зарплата работников\ культуры и искусства " = culture_salary)
+
+
+
+
+
+table_revenue_1 <- df_revenue %>%  select(c('wage_average', 'social_share' ,'kindergarden_salary', 
+                                          'school_salary', 'culture_salary'))%>%
+  rename( #"Населённые пункты,\ относящиеся к Арктической зоне" = arctic_zone,
+        # "Труднодоступные населённые пункты" = Remote,
+         "Средняя заработная плата" = wage_average,
+          "Доля социальных выплат в денежных доходах" = social_share,
+         "Средняя запрлата педагогических\ работников дошкольных организаций" = kindergarden_salary,
+         "Средняя запрлата педагогических\ работников муниципальных образовательных организаций" = school_salary,
+         "Средняя зарплата работников\ культуры и искусства " = culture_salary) %>% 
+  gt_plt_summary_1(title = "Описательная статистика категории доходы") 
+table_revenue_1 
+
+gtsave(table_revenue_1, "summary_revenue_1.png")
+gtsave(table_revenue, "summary_revenue.png")
+
+#summary_tbl$Переменная[summary_tbl$Переменная == "Remote"] <-"Доля труднодоступных\ населённых пунктов" 
+summary_tbl$Переменная[summary_tbl$Переменная == "wage_average"] <-"Средняя заработная плата"
+
+summary_tbl$Переменная[summary_tbl$Переменная == "social_share"] <- "Доля социальных выплат\ в денежных доходах"
+summary_tbl$Переменная[summary_tbl$Переменная == "kindergarden_salary"] <- "Средняя запрлата педагогических\ работников дошкольных организаций"
+summary_tbl$Переменная[summary_tbl$Переменная == "school_salary"] <- "Средняя запрлата педагогических\ работников муниципальных образовательных организаций"
+summary_tbl$Переменная[summary_tbl$Переменная == "culture_salary"] <- "Средняя зарплата работников\ культуры и искусства "
+
+summary_tbl <- df_revenue %>%
+  mutate(arctic_zone = ifelse(arctic_zone == "1",
+                         paste0("Арктическая зона ", emoji("snowflake")),
+                         paste0("Неарктическая зона ", emoji("evergreen_tree")))) |>
+  group_by(arctic_zone) %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE))) %>%
+  tidyr::pivot_longer(-arctic_zone, names_to = "Переменная", values_to = "Среднее") %>%
+  tidyr::pivot_wider(names_from = arctic_zone, values_from = Среднее)
+
+color_palette <- c("cadetblue1", "#9AFF9A")
+table_revenue <- summary_tbl %>%
+  gt(rowname_col = "Переменная") %>% 
+  tab_header(title = md("**Сравнение показателей доходов**"),
+             subtitle = "Средние значения в Арктической зоне и остальных населённых пунктах") %>%
+  fmt_number(columns = where(is.numeric), decimals = 1) %>%
+  gt_color_rows(columns = where(is.numeric),palette = color_palette) %>%
+  gt_theme_guardian() %>%
+  tab_options(table.font.names = "Segoe UI",
+    table.width = pct(100),
+    heading.title.font.size = 20,
+    heading.subtitle.font.size = 14,
+)
+table_revenue
+######Демография####
+df_all <- df_POAD %>%
+  select(c('arctic_zone', 'Remote', 'suburb','pop_men', 'pop_women', 'pop_total','migration'))
+
+
+df_all <- df_all %>%
+  mutate(suburb = case_when(suburb == "TRUE" ~ 1,
+                            suburb == "FALSE" ~0))%>%
+  rename("Населённые пункты,\ относящиеся к Арктической зоне" = arctic_zone,
+    "Труднодоступные населённые пункты" = Remote,
+    "Находился ли НП в 30-40 минутах езды от города" = suburb,
+    "Численность мужчин" = pop_men,
+    "Численность женщин" = pop_women,
+    "Общая численность" = pop_total,
+    "Миграционный баланс за 2023 год" = migration)
+table_all_1 <- df_all|>gtExtras::gt_plt_summary(title = "Показатели демографии и урбанизации")
+table_all_1
+
+df_all <- df_all %>%
+  rename(arctic_zone = "Населённые пункты,\ относящиеся к Арктической зоне")
+
+summary_all <- df_all %>%
+  mutate( arctic_zone = ifelse(arctic_zone == "1",
+                              paste0("Арктическая зона ", emoji("snowflake")),
+                              paste0("Неарктическая зона ", emoji("evergreen_tree")))) |>
+  group_by(arctic_zone) %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE))) %>%
+  tidyr::pivot_longer(-arctic_zone, names_to = "Переменная", values_to = "Среднее") %>%
+  tidyr::pivot_wider(names_from = arctic_zone, values_from = Среднее)
+
+table_all <- summary_all %>%
+  gt(rowname_col = "Переменная") %>% 
+  tab_header(title = md("**Сравнение показателей демографии и урбанизации**"),
+             subtitle = "Средние значения в Арктической зоне и остальных населённых пунктах") %>%
+  fmt_number(columns = where(is.numeric), decimals = 1) %>%
+  gt_color_rows(columns = where(is.numeric),palette = color_palette) %>%
+  gt_theme_guardian() %>%
+  tab_options(table.font.names = "Segoe UI",
+              table.width = pct(100),
+              heading.title.font.size = 20,
+              heading.subtitle.font.size = 14,
+  )
+table_all
+
+gtsave(table_all, "summary_all.png")
+gtsave(table_all_1, "summary_all_1.png")
+
+#####ЖКХ#####
+df_gkh <- df_POAD %>%
+  select(c('housing_depreciation', 'emergency_housing', 
+           'building_construction_space', 'families_improve', 'space_per_capita','arctic_zone'))
+
+df_gkh <- df_gkh %>%
+rename(
+         "Процент износа многовартирных домов (2025 г.)" = housing_depreciation,
+         "Процент аварийных многоквартирных домов (2025 г.)" = emergency_housing,
+         "Площадь жилых помещений, введённых с 2019 по 2024" = building_construction_space,
+         "Число семей, получивших жильё с 2019 по 2024" = families_improve,
+         "Площадь жилых помещений на одного жителя в 2019 - 2024" = space_per_capita)
+table_gkh_1 <- df_gkh %>%
+  select(-arctic_zone)|>gtExtras::gt_plt_summary(title = "Показатели качества жилых помещений")
+table_gkh_1
+
+#df_gkh <- df_gkh %>%
+  rename(arctic_zone = "Населённые пункты,\ относящиеся к Арктической зоне")
+
+summary_gkh <- df_gkh %>%
+  mutate( arctic_zone = ifelse(arctic_zone == "1",
+                               paste0("Арктическая зона ", emoji("snowflake")),
+                               paste0("Неарктическая зона ", emoji("evergreen_tree")))) |>
+  group_by(arctic_zone) %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE))) %>%
+  tidyr::pivot_longer(-arctic_zone, names_to = "Переменная", values_to = "Среднее") %>%
+  tidyr::pivot_wider(names_from = arctic_zone, values_from = Среднее)
+
+table_gkh <- summary_gkh %>%
+  gt(rowname_col = "Переменная") %>% 
+  tab_header(title = md("**Сравнение показателей качества жилых помещений**"),
+             subtitle = "Средние значения в Арктической зоне и остальных населённых пунктах") %>%
+  fmt_number(columns = where(is.numeric), decimals = 1) %>%
+  gt_color_rows(columns = where(is.numeric),palette = color_palette) %>%
+  gt_theme_guardian() %>%
+  tab_options(table.font.names = "Segoe UI",
+              table.width = pct(100),
+              heading.title.font.size = 20,
+              heading.subtitle.font.size = 14,
+  )
+table_gkh
+
+gtsave(table_gkh, "summary_gkh.png")
+gtsave(table_gkh_1, "summary_gkh_1.png")
+
+
+
+
+
+
+
+#####Качество жизни #####
+
+df_qual <- df_POAD %>%
+  select(c('arctic_zone', '2.1.2_healthcare_new', '2.1.3_housing_new', '2.1.4_sports_new',
+           '2.1.7_public_spaces_new', '2.1.8_education_new','2.2.1_air_quality_new',
+           '2.3.5_suitability_indigenous_binary_new', '2.7_crime_experience_binary_new'))
+
+df_qual <- df_qual %>%
+  rename(#"Населённые пункты,\ относящиеся к Арктической зоне" = arctic_zone,
+         "Качество медицинских услуг" = `2.1.2_healthcare_new`,
+         "Качество жилищных условий" = `2.1.3_housing_new`,
+         "Спортивная инфраструктура" = `2.1.4_sports_new`,
+         "Общественные пространства" = `2.1.7_public_spaces_new`,
+         "Образование" = `2.1.8_education_new`,
+         "Качество воздуха" = `2.2.1_air_quality_new`,
+         "Пригодность НП для КМНС" = `2.3.5_suitability_indigenous_binary_new`,
+         "Опыт столкновения с преступностью за прошлый год" = `2.7_crime_experience_binary_new`)
+table_qual_1 <- df_qual %>%
+  select(-arctic_zone) |>gtExtras::gt_plt_summary(title = "Показатели удовлетворённости населения качеством жизни")
+table_qual_1
+
+df_qual <- df_qual %>%
+  rename(arctic_zone = "Населённые пункты,\ относящиеся к Арктической зоне")
+
+summary_qual <- df_qual %>%
+  mutate( arctic_zone = ifelse(arctic_zone == "1",
+                               paste0("Арктическая зона ", emoji("snowflake")),
+                               paste0("Неарктическая зона ", emoji("evergreen_tree")))) |>
+  group_by(arctic_zone) %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE))) %>%
+  tidyr::pivot_longer(-arctic_zone, names_to = "Переменная", values_to = "Среднее") %>%
+  tidyr::pivot_wider(names_from = arctic_zone, values_from = Среднее)
+
+table_qual <- summary_qual %>%
+  gt(rowname_col = "Переменная") %>% 
+  tab_header(title = md("**Сравнение показателей удовлетворённсоти населения качеством жизни**"),
+             subtitle = "Средние значения в Арктической зоне и остальных населённых пунктах") %>%
+  fmt_number(columns = where(is.numeric), decimals = 1) %>%
+  gt_color_rows(columns = where(is.numeric),palette = color_palette) %>%
+  gt_theme_guardian() %>%
+  tab_options(table.font.names = "Segoe UI",
+              table.width = pct(100),
+              heading.title.font.size = 20,
+              heading.subtitle.font.size = 14,
+  )
+table_qual
+
+gtsave(table_qual, "summary_qual.png")
+gtsave(table_qual_1, "summary_qual_1.png")
+
+#####Экология####
+
+df_eco <- df_POAD %>%
+  select(c('arctic_zone', 'ecology_spending', 'ecology_projects',
+           'emissions_all', 'emissions_first', 'emissions_second',
+           'comments_eco_perc', 'ecology_polygon'))
+
+df_eco$log_all <- log((df_eco$emissions_all) + 1)
+df_eco$log_first <- log((df_eco$emissions_first) + 1)
+df_eco$log_second <- log((df_eco$emissions_second) + 1)
+
+
+df_eco <- df_eco %>%
+  select( - c('emissions_all', 'emissions_first', 'emissions_second'))
+
+df_eco <- df_eco %>%
+  rename(#"Населённые пункты,\ относящиеся к Арктической зоне" = arctic_zone,
+    "Затраты на охрану окружающей среды" = ecology_spending,
+    "Реализация проектов по охране окружающей среды" = ecology_projects,
+    "Логарифм массы выбросов всех классов опасности" = log_all,
+    "Логарифм массы выбросов первого класса опасности" = log_first,
+    "Логарифм массы выбросов второго класса опасности" = log_second,
+    "Доля сообщений об экологических проблемах" = comments_eco_perc,
+    "Наличие неэкологичных объектов" = ecology_polygon)
+table_eco_1 <- df_eco %>%
+  select(-arctic_zone) |>gtExtras::gt_plt_summary(title = "Показатели экологии")
+table_eco_1
+
+
+
+summary_eco <- df_eco %>%
+  mutate( arctic_zone = ifelse(arctic_zone == "1",
+                               paste0("Арктическая зона ", emoji("snowflake")),
+                               paste0("Неарктическая зона ", emoji("evergreen_tree")))) |>
+  group_by(arctic_zone) %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE))) %>%
+  tidyr::pivot_longer(-arctic_zone, names_to = "Переменная", values_to = "Среднее") %>%
+  tidyr::pivot_wider(names_from = arctic_zone, values_from = Среднее)
+
+table_eco <- summary_eco %>%
+  gt(rowname_col = "Переменная") %>% 
+  tab_header(title = md("**Показатели экологии**"),
+             subtitle = "Средние значения в Арктической зоне и остальных населённых пунктах") %>%
+  fmt_number(columns = where(is.numeric), decimals = 1) %>%
+  gt_color_rows(columns = where(is.numeric),palette = color_palette) %>%
+  gt_theme_guardian() %>%
+  tab_options(table.font.names = "Segoe UI",
+              table.width = pct(100),
+              heading.title.font.size = 20,
+              heading.subtitle.font.size = 14,
+  )
+table_eco
+
+gtsave(table_eco, "summary_eco.png")
+gtsave(table_eco_1, "summary_eco_1.png", , path = "C:/Users/juill/Desktop/Арктика")
+
+#####Экономика####
+df_econ <- df_POAD %>%
+  select(c('arctic_zone','investments_per_capita', 'retail_federal',
+           'gain_results', 'loss_results','unemployed',
+           'revenue_per_capita', 'profit_bt_per_capita',
+           'vacancies', 'grocery store_norm', 'pvz_norm'))
+summary(df_econ)
+df_econ$log_gain <- log((df_econ$gain_results) + 1)
+df_econ$log_loss <- log((df_econ$loss_results) + 1)
+df_econ$log_rev <- log((df_econ$revenue_per_capita) + 1)
+df_econ$log_prof <- log((df_econ$profit_bt_per_capita) + 1)
+
+df_econ <- df_econ %>%
+  select( - c('gain_results', 'loss_results', 'revenue_per_capita', 'profit_bt_per_capita'))
+
+df_econ <- df_econ %>%
+  rename(#"Населённые пункты,\ относящиеся к Арктической зоне" = arctic_zone,
+    "Инвестиции на душу населения" = investments_per_capita,
+    "Наличие фед. ритейла в НП" = retail_federal,
+    "Логарим средней прибыли компаний в НП" = log_gain,
+    "Логарифм среднего убытка компаний в НП" = log_loss,
+    "Уровень безработицы" = unemployed,
+    "Логарим выручки компаний (2023 г.) на душу населения" = log_rev,
+    "Логарифм прибыли компаний (2023 г.) на душу населения" = log_prof,
+    "Количество вакансий на одного безработного" = vacancies,
+    "Количество ПВЗ в НП" = pvz_norm,
+    "Количество продуктовых магазинов" = `grocery store_norm`)
+table_econ_1 <- df_econ %>%
+  select(-arctic_zone) |>gtExtras::gt_plt_summary(title = "Экономические показатели")
+table_econ_1
+
+
+
+summary_econ <- df_econ %>%
+  mutate( arctic_zone = ifelse(arctic_zone == "1",
+                               paste0("Арктическая зона ", emoji("snowflake")),
+                               paste0("Неарктическая зона ", emoji("evergreen_tree")))) |>
+  group_by(arctic_zone) %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE))) %>%
+  tidyr::pivot_longer(-arctic_zone, names_to = "Переменная", values_to = "Среднее") %>%
+  tidyr::pivot_wider(names_from = arctic_zone, values_from = Среднее)
+
+table_econ <- summary_econ %>%
+  gt(rowname_col = "Переменная") %>% 
+  tab_header(title = md("**Экономические показатели**"),
+             subtitle = "Средние значения в Арктической зоне и остальных населённых пунктах") %>%
+  fmt_number(columns = where(is.numeric), decimals = 1) %>%
+  gt_color_rows(columns = where(is.numeric),palette = color_palette) %>%
+  gt_theme_guardian() %>%
+  tab_options(table.font.names = "Segoe UI",
+              table.width = pct(100),
+              heading.title.font.size = 20,
+              heading.subtitle.font.size = 14,
+  )
+table_econ
+
+gtsave(table_econ, "summary_econ.png")
+gtsave(table_econ_1, "summary_econ_1.png")
+
+######Здравоохранение####
+# Создаем датафрейм для здравоохранения
+df_health <- df_POAD %>%
+  select(c('arctic_zone',
+           'dentists', 'terapists', 'pediatricians', 'support_staff',
+           'primary_avaiability', 'death_rate', 'comments_health_perc',
+           'aviation_sun', 'aviation_center'))
+
+# Преобразуем бинарные переменные
+df_health <- df_health %>%
+  rename(#"Населённые пункты, относящиеся к Арктической зоне" = arctic_zone,
+         "Количество стоматологов" = dentists,
+         "Количество врачей терапевтического профиля" = terapists,
+         "Количество педиатров" = pediatricians,
+         "Численность среднего медперсонала" = support_staff,
+         "Доступность первичной медпомощи" = primary_avaiability,
+         "Смертность трудоспособного населения" = death_rate,
+         "Проблемы здравоохранения в соцсетях" = comments_health_perc,
+         "Инфраструктура санитарной авиации" = aviation_sun,
+         "Опорная точка санитарной авиации" = aviation_center)
+
+# Сводная таблица
+table_health_1 <- df_health %>%
+  select(-arctic_zone) |> gtExtras::gt_plt_summary(title = "Показатели здравоохранения")
+table_health_1
+
+# Сравнение по арктическим зонам
+
+
+summary_health <- df_health %>%
+  mutate(arctic_zone = ifelse(arctic_zone == "1",
+                              paste0("Арктическая зона ", emoji("snowflake")),
+                              paste0("Неарктическая зона ", emoji("evergreen_tree")))) |>
+  group_by(arctic_zone) %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE))) %>%
+  tidyr::pivot_longer(-arctic_zone, names_to = "Переменная", values_to = "Среднее") %>%
+  tidyr::pivot_wider(names_from = arctic_zone, values_from = Среднее)
+
+table_health <- summary_health %>%
+  gt(rowname_col = "Переменная") %>% 
+  tab_header(title = md("**Сравнение показателей здравоохранения**"),
+             subtitle = "Средние значения в Арктической зоне и остальных населённых пунктах") %>%
+  fmt_number(columns = where(is.numeric), decimals = 2) %>%
+  gt_color_rows(columns = where(is.numeric), palette = color_palette) %>%
+  gt_theme_guardian() %>%
+  tab_options(table.font.names = "Segoe UI",
+              table.width = pct(100),
+              heading.title.font.size = 20,
+              heading.subtitle.font.size = 14)
+
+table_health
+
+gtsave(table_health, "summary_health.png")
+gtsave(table_health_1, "summary_health_1.png")
+
+#####Инфраструктура####
+# Создаем датафрейм для инфраструктуры
+df_infra <- df_POAD %>%
+  select(c('arctic_zone',
+           'sport_facilities', 'sport_halls', 'sport_pools', 'sport_gym',
+           'cinemas', 'libraries', 'theatres', 'culture_centers',
+           'catering', 'improving_facilities', 'lighting',
+           'disabled_transport', 'disabled_buildings'))
+
+# Преобразуем бинарные переменные
+df_infra <- df_infra %>%
+  rename(
+         "Спортивные сооружения плоскостные" = sport_facilities,
+         "Спортивные залы" = sport_halls,
+         "Бассейны" = sport_pools,
+         "Тренажерные залы" = sport_gym,
+         "Кинотеатры" = cinemas,
+         "Библиотеки" = libraries,
+         "Театры и концертные залы" = theatres,
+         "Дома культуры" = culture_centers,
+         "Точки общественного питания" = catering,
+         "Благоустроенные парки и скверы" = improving_facilities,
+         "Освещенные улицы" = lighting,
+         "Доступный транспорт для маломобильных" = disabled_transport,
+         "Доступные здания для маломобильных" = disabled_buildings)
+
+# Сводная таблица
+table_infra_1 <- df_infra %>%
+  select(- arctic_zone) |> gtExtras::gt_plt_summary(title = "Показатели инфраструктуры")
+table_infra_1
+
+
+summary_infra <- df_infra %>%
+  mutate(arctic_zone = ifelse(arctic_zone == "1",
+                              paste0("Арктическая зона ", emoji("snowflake")),
+                              paste0("Неарктическая зона ", emoji("evergreen_tree")))) |>
+  group_by(arctic_zone) %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE))) %>%
+  tidyr::pivot_longer(-arctic_zone, names_to = "Переменная", values_to = "Среднее") %>%
+  tidyr::pivot_wider(names_from = arctic_zone, values_from = Среднее)
+
+
+table_infra <- summary_infra %>%
+  gt(rowname_col = "Переменная") %>% 
+  tab_header(title = md("**Сравнение показателей инфраструктуры**"),
+             subtitle = "Средние значения в Арктической зоне и остальных населённых пунктах") %>%
+  fmt_number(columns = where(is.numeric), decimals = 2) %>%
+  gt_color_rows(columns = where(is.numeric), palette = color_palette) %>%
+  gt_theme_guardian() %>%
+  tab_options(table.font.names = "Segoe UI",
+              table.width = pct(100),
+              heading.title.font.size = 20,
+              heading.subtitle.font.size = 14)
+
+table_infra
+
+gtsave(table_infra, "summary_infra.png")
+gtsave(table_infra_1, "summary_infra_1.png")
+
+#####Образование####
+# Создаем датафрейк для образования
+df_education <- df_POAD %>%
+  select(c('arctic_zone', 
+           'kindergardens_availability', 'certificate_fail',
+           'russian_oge', 'math_oge', 'russian_ege', 'math_ege_base', 'math_ege_plus',
+           'spendings_per_schoolar', 'additional_education',
+           'kindergarden_salary', 'school_salary', 'culture_salary'))
+
+# Преобразуем бинарные переменные
+df_education <- df_education %>%
+
+  rename(
+         "Доступность детских садов" = kindergardens_availability,
+         "Выпускники без аттестата" = certificate_fail,
+         "ОГЭ русский язык" = russian_oge,
+         "ОГЭ математика" = math_oge,
+         "ЕГЭ русский язык" = russian_ege,
+         "ЕГЭ математика база" = math_ege_base,
+         "ЕГЭ математика профиль" = math_ege_plus,
+         "Расходы на образование на ученика" = spendings_per_schoolar,
+         "Дополнительное образование" = additional_education,
+         "Зарплата педагогов детсадов" = kindergarden_salary,
+         "Зарплата педагогов школ" = school_salary,
+         "Зарплата работников культуры" = culture_salary)
+
+# Сводная таблица
+table_education_1 <- df_education %>%
+  select(-arctic_zone) |> gtExtras::gt_plt_summary(title = "Показатели образования")
+table_education_1
+
+
+summary_education <- df_education %>%
+  mutate(arctic_zone = ifelse(arctic_zone == "1",
+                              paste0("Арктическая зона ", emoji("snowflake")),
+                              paste0("Неарктическая зона ", emoji("evergreen_tree")))) |>
+  group_by(arctic_zone) %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE))) %>%
+  tidyr::pivot_longer(-arctic_zone, names_to = "Переменная", values_to = "Среднее") %>%
+  tidyr::pivot_wider(names_from = arctic_zone, values_from = Среднее)
+
+table_education <- summary_education %>%
+  gt(rowname_col = "Переменная") %>% 
+  tab_header(title = md("**Сравнение показателей образования**"),
+             subtitle = "Средние значения в Арктической зоне и остальных населённых пунктах") %>%
+  fmt_number(columns = where(is.numeric), decimals = 2) %>%
+  gt_color_rows(columns = where(is.numeric), palette = color_palette) %>%
+  gt_theme_guardian() %>%
+  tab_options(table.font.names = "Segoe UI",
+              table.width = pct(100),
+              heading.title.font.size = 20,
+              heading.subtitle.font.size = 14)
+
+table_education
+
+gtsave(table_education, "summary_education.png")
+gtsave(table_education_1, "summary_education_1.png")
