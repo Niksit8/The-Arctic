@@ -45,7 +45,7 @@
 - экономические характеристики.
 
 ### Демография и урбанизация
-![Показатели демографии и урбанизации](The-Arctic/Opisatelnaya_statistika/summary_all_1.png)
+![summary_eco_1](The-Arctic/Описательная статистика/summary_eco_1.png)
 
 ### Экология
 ![Показатели экологии](The-Arctic/Описательная статистика/summary_eco_1.png)
