@@ -1,0 +1,154 @@
+group_by(municipality_up_name) %>%
+    summarise(across(where(is.numeric), ~ mean(., na.rm = TRUE))) %>%
+    ungroup()
+
+  all_vars <- names(municipality_data)
+
+  exclude_patterns <- c(
+    "region", "municipality", "settlement", "type", "oktmo",
+    "arctic", "remote", "special", "suburb", "aviation", 
+    "ecology_polygon", "nomadic_education", "binary", "suitability", "crime_experience"
+  )
+  
+  # Находим переменные для исключения
+  exclude_vars <- all_vars[sapply(all_vars, function(x) {
+    any(sapply(exclude_patterns, function(pattern) grepl(pattern, x, ignore.case = TRUE)))
+  })]
+  
+  # Добавляем название муниципалитета в исключение
+  exclude_vars <- c(exclude_vars, "municipality_up_name")
+
+  #Выбираем только количественные переменные для анализа
+  quantitative_data <- municipality_data %>%
+    select(-any_of(exclude_vars)) %>%
+    select(where(is.numeric)) %>%
+    select(where(~ sum(!is.na(.)) / length(.) > 0.5))
+  
+  #Обработка пропущенных значений
+  cleaned_data <- quantitative_data %>%
+    mutate(across(everything(), ~ {
+      if (sum(!is.na(.)) > 0) {
+        ifelse(is.na(.), median(., na.rm = TRUE), .)
+      } else {
+        .
+      }
+    }))
+  
+  # Убираем переменные, которые после обработки все еще имеют много пропусков
+  cleaned_data <- cleaned_data %>%
+    select(where(~ sum(is.na(.)) / length(.) < 0.3))
+  
+ #Стандартизация
+  scaled_data <- cleaned_data %>%
+    mutate(across(everything(), ~ {
+      if (sd(., na.rm = TRUE) > 0) {
+        scale(.)
+      } else {
+        .
+      }
+    }))
+  
+  # Удаляем строки с NA после стандартизации
+  scaled_data <- na.omit(scaled_data)
+  
+  # Сохраняем названия муниципалитетов для подписей
+  municipality_names <- municipality_data$municipality_up_name[as.numeric(rownames(scaled_data))]
+# Вычисляем матрицу расстояний между муниципалитетами
+  distance_matrix <- dist(scaled_data, method = "euclidean")
+  
+  # Выполняем иерархическую кластеризацию
+  hc_municipalities <- hclust(distance_matrix, method = "ward.D2")
+  
+  #Визуализация дендрограммы 
+  par(mar = c(8, 4, 4, 2))  # Увеличиваем нижнее поле для подписей
+  plot(hc_municipalities, 
+       main = "Дендрограмма муниципалитетов по показателям качества жизни",
+       xlab = "",
+       ylab = "Расстояние",
+       labels = municipality_names,
+       cex = 0.6,  # Размер шрифта для названий
+       hang = -1)
+  
+  #определение числа кластеров
+  k <- which(diff(wss) / wss[-length(wss)] < 0.1)[1]
+  if (is.na(k)) k <- 4  # По умолчанию 4 кластера
+  k <- max(2, min(k, 8))
+  
+  cat("Рекомендуемое число кластеров для муниципалитетов:", k, "\n")
+  
+  #Визуализация cнова
+  par(mar = c(8, 4, 4, 2))
+  plot(hc_municipalities, 
+       main = paste("Дендрограмма муниципалитетов с", k, "кластерами"),
+       xlab = "", 
+       ylab = "Расстояние", 
+       labels = municipality_names,
+       cex = 0.6, 
+       hang = -1)
+  rect.hclust(hc_municipalities, k = k, border = 2:(k+1))
+
+  
+
+  dend <- as.dendrogram(hc_municipalities)
+  labels(dend) <- municipality_names[order.dendrogram(dend)]
+  
+  # Визуализируем дляя 10 кластеров
+  fviz_dend(dend, 
+            cex = 0.6,
+            lwd = 0.8, 
+            k = 10,
+            rect = TRUE,
+            k_colors = "jco",
+            rect_border = "jco", 
+            rect_fill = TRUE,
+            type = "phylogenic", 
+            repel = TRUE,
+            main = "Филогенетическая дендрограмма муниципалитетов\nпо показателям качества жизни",
+            xlab = "Муниципалитеты",
+            ylab = "Расстояние")
+municipality_clusters <- cutree(hc_municipalities, k = k)
+  
+  # Создаем датафрейм с результатами
+  clustering_results <- data.frame(
+    municipality = municipality_names,
+    cluster = municipality_clusters
+  )
+
+  cluster_counts <- table(clustering_results$cluster)
+  for (i in 1:k) {
+    cat("   Кластер", i, ": ", cluster_counts[i], " муниципалитетов (", 
+        round(cluster_counts[i] / nrow(clustering_results) * 100, 1), "%)\n")
+  }
+  
+  for (i in 1:k) {
+    cat("КЛАСТЕР", i, ":\n")
+    cluster_data <- clustering_results %>% filter(cluster == i)
+    
+    # Выводим муниципалитеты этого кластера
+    municipalities_in_cluster <- cluster_data$municipality
+    for (j in seq_along(municipalities_in_cluster)) {
+      cat("   ", j, ". ", municipalities_in_cluster[j], "\n")
+    }
+    cat("\n")
+  }
+clustering_results_10 <- data.frame(
+    municipality = municipality_names,
+    cluster = municipality_clusters_10
+  )
+ 
+  cluster_counts_10 <- table(clustering_results_10$cluster)
+  for (i in 1:10) {
+    cat("   Кластер", i, ": ", cluster_counts_10[i], " муниципалитетов (", 
+        round(cluster_counts_10[i] / nrow(clustering_results_10) * 100, 1), "%)\n")
+  }
+  
+  for (i in 1:10) {
+    cat("КЛАСТЕР", i, " (", cluster_counts_10[i], " муниципалитетов):\n")
+    cluster_data <- clustering_results_10 %>% filter(cluster == i)
+    
+    municipalities_in_cluster <- cluster_data$municipality
+    for (j in seq_along(municipalities_in_cluster)) {
+      cat("   ", j, ". ", municipalities_in_cluster[j], "\n")
+    }
+    cat("\n")
+  }
